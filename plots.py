@@ -522,7 +522,7 @@ def create_all_plots(data, results, output_dir="graphs", show=False):
     имя графика -> путь к файлу.
     """
     output_dir = Path(output_dir)
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     graph_paths = {
         "GRAPH_DN_AZIMUTH": plot_dn_azimuth(data, results, output_dir, show),
