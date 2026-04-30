@@ -1,6 +1,6 @@
 # report.py
 # Генерация Word-отчёта по шаблону template.docx.
-# Этот файл открывает шаблон, заменяет метки на расчёты и вставляет графики.
+# Этот файл открывает шаблон, заменяет метки на расчёты, таблицы, анализ и вставляет графики.
 
 from pathlib import Path
 
@@ -504,6 +504,106 @@ kсж п бл вп = Rmax п бл вп / Rmax = {ru_number(results['R_max_p_bl_v
 
 
 # -----------------------------
+# Итоговая таблица и анализ результатов
+# -----------------------------
+
+def build_results_table_rows(results):
+    """Формирует строки итоговой таблицы результатов."""
+    return [
+        ["Раздел", "Параметр", "Обозначение", "Значение", "Единица"],
+
+        ["Рабочий диапазон", "Рабочая частота", "f0", ru_number(results["f0_ghz"], 2), "ГГц"],
+        ["Рабочий диапазон", "Диапазон волн", "—", results["wave_range"], "—"],
+
+        ["АФАР", "Шаг решётки по горизонтали", "dx", ru_number(results["dx"], 4), "м"],
+        ["АФАР", "Шаг решётки по вертикали", "dy", ru_number(results["dy"], 4), "м"],
+        ["АФАР", "Количество излучателей по горизонтали", "Nx", results["Nx"], "—"],
+        ["АФАР", "Количество излучателей по вертикали", "Ny", results["Ny"], "—"],
+        ["АФАР", "Общее количество излучателей", "NΣ", results["N_sum"], "—"],
+        ["АФАР", "Геометрическая площадь АФАР", "Sаг", ru_number(results["S_geo"], 3), "м²"],
+        ["АФАР", "Эффективная площадь АФАР", "Sa", ru_number(results["S_a"], 3), "м²"],
+        ["АФАР", "Коэффициент усиления", "Ga", ru_number(results["G_a"], 2), "—"],
+        ["АФАР", "Коэффициент усиления", "Ga", ru_number(results["G_a_db"], 2), "дБ"],
+        ["АФАР", "Ширина луча по азимуту", "ΔΘα", ru_number(results["delta_theta_alpha"], 2), "град"],
+        ["АФАР", "Ширина луча по углу места", "ΔΘε", ru_number(results["delta_theta_epsilon"], 2), "град"],
+        ["АФАР", "Уровень боковых лепестков", "ηбл", ru_number(results["eta_bl_db"], 1), "дБ"],
+        ["АФАР", "Угол нормали к АФАР", "γε норм", ru_number(results["gamma_epsilon_norm"], 2), "град"],
+
+        ["Мощность", "Импульсная мощность РЛС", "Pи", ru_number(results["P_i_kw"], 2), "кВт"],
+        ["Мощность", "Средняя мощность РЛС", "Pср", ru_number(results["P_avg_kw"], 2), "кВт"],
+
+        ["Приёмник", "Эффективная полоса пропускания", "ΔFпр", ru_number(results["delta_F_pr"], 1), "Гц"],
+        ["Приёмник", "Чувствительность приёмника", "Pпр min", ru_sci(results["P_pr_min"], 3), "Вт"],
+        ["Приёмник", "Пороговое отношение сигнал/шум", "q²", ru_number(results["q2"], 2), "—"],
+        ["Приёмник", "Пороговое отношение сигнал/шум", "q²", ru_number(results["q2_db"], 2), "дБ"],
+        ["Приёмник", "Пороговая чувствительность", "Pпор", ru_sci(results["P_threshold"], 3), "Вт"],
+
+        ["Дальность", "Минимальная дальность", "Rmin", ru_number(results["R_min_km"], 2), "км"],
+        ["Дальность", "Максимальная дальность", "Rmax", ru_number(results["R_max_km"], 2), "км"],
+        ["Дальность", "Rmax при α = ±60°", "Rmax(±60°)", ru_number(results["R_max_alpha_edge_km"], 2), "км"],
+        ["Дальность", "Rmax при ε = 5°", "Rmax(5°)", ru_number(results["R_max_epsilon_min_km"], 2), "км"],
+        ["Дальность", "Rmax при ε = 70°", "Rmax(70°)", ru_number(results["R_max_epsilon_max_km"], 2), "км"],
+        ["Дальность", "Дальность обнаружения маловысотной цели", "Rmax МВЦ", ru_number(results["R_max_mvc_km"], 2), "км"],
+
+        ["Разрешающая способность", "По дальности", "δR", ru_number(results["delta_R"], 2), "м"],
+        ["Разрешающая способность", "По радиальной скорости", "δVr", ru_number(results["delta_Vr"], 2), "м/с"],
+        ["Разрешающая способность", "По азимуту", "δΘα", ru_number(results["delta_theta_alpha"], 2), "град"],
+        ["Разрешающая способность", "По углу места", "δΘε", ru_number(results["delta_theta_epsilon"], 2), "град"],
+
+        ["Точность измерения", "По дальности", "ξR", ru_number(results["xi_R"], 3), "м"],
+        ["Точность измерения", "По радиальной скорости", "ξVr", ru_number(results["xi_Vr"], 3), "м/с"],
+        ["Точность измерения", "По азимуту", "ξΘα", ru_number(results["xi_theta_alpha"], 4), "град"],
+        ["Точность измерения", "По углу места", "ξΘε", ru_number(results["xi_theta_epsilon"], 4), "град"],
+
+        ["Помехи", "Самоприкрытие, главный луч", "Rmax п сп", ru_number(results["R_max_p_sp_km"], 2), "км"],
+        ["Помехи", "Самоприкрытие, боковые лепестки", "Rmax п бл сп", ru_number(results["R_max_p_bl_sp_km"], 2), "км"],
+        ["Помехи", "Внешнее прикрытие, главный луч", "Rmax п вп", ru_number(results["R_max_p_vp_km"], 2), "км"],
+        ["Помехи", "Внешнее прикрытие, боковые лепестки", "Rmax п бл вп", ru_number(results["R_max_p_bl_vp_km"], 2), "км"],
+
+        ["Коэффициенты сжатия", "Самоприкрытие, главный луч", "kсж п сп", ru_number(results["k_szh_p_sp"], 3), "—"],
+        ["Коэффициенты сжатия", "Самоприкрытие, боковые лепестки", "kсж п бл сп", ru_number(results["k_szh_p_bl_sp"], 3), "—"],
+        ["Коэффициенты сжатия", "Внешнее прикрытие, главный луч", "kсж п вп", ru_number(results["k_szh_p_vp"], 3), "—"],
+        ["Коэффициенты сжатия", "Внешнее прикрытие, боковые лепестки", "kсж п бл вп", ru_number(results["k_szh_p_bl_vp"], 3), "—"],
+    ]
+
+
+def build_results_analysis_text(results):
+    """Формирует автоматический анализ результатов для Word-отчёта."""
+    rmax = results["R_max_km"]
+    rmin = results["R_min_km"]
+    r_mvc = results["R_max_mvc_km"]
+
+    interference_cases = [
+        ("самоприкрытие в направлении главного луча", results["R_max_p_sp_km"], results["k_szh_p_sp"]),
+        ("самоприкрытие через боковые лепестки", results["R_max_p_bl_sp_km"], results["k_szh_p_bl_sp"]),
+        ("внешнее прикрытие в направлении главного луча", results["R_max_p_vp_km"], results["k_szh_p_vp"]),
+        ("внешнее прикрытие через боковые лепестки", results["R_max_p_bl_vp_km"], results["k_szh_p_bl_vp"]),
+    ]
+
+    worst_name, worst_range, worst_k = min(interference_cases, key=lambda item: item[2])
+
+    if worst_k > 0:
+        compression_times = 1 / worst_k
+    else:
+        compression_times = 0
+
+    mvc_ratio = r_mvc / rmax if rmax > 0 else 0
+    mvc_drop_percent = (1 - mvc_ratio) * 100
+
+    return f"""По заданным исходным данным РЛС работает в {results['wave_range']} диапазоне волн. Рабочая частота составляет {ru_number(results['f0_ghz'], 2)} ГГц.
+
+В составе АФАР используется {results['N_sum']} излучателей. Расчётная ширина главного луча составляет {ru_number(results['delta_theta_alpha'], 2)}° в азимутальной плоскости и {ru_number(results['delta_theta_epsilon'], 2)}° в угломестной плоскости.
+
+Минимальная дальность действия РЛС равна {ru_number(rmin, 2)} км, а максимальная дальность обнаружения цели при неотклонённом главном луче составляет {ru_number(rmax, 2)} км.
+
+Для маловысотной цели максимальная дальность уменьшается до {ru_number(r_mvc, 2)} км. Это составляет примерно {ru_number(mvc_ratio, 2)} от максимальной дальности без учёта малой высоты цели, то есть снижение составляет около {ru_number(mvc_drop_percent, 1)}%.
+
+Наиболее опасным режимом воздействия активной помехи является {worst_name}. В этом случае дальность обнаружения уменьшается до {ru_number(worst_range, 2)} км, а коэффициент сжатия зоны действия составляет {ru_number(worst_k, 3)}. Это означает, что зона действия по дальности уменьшается примерно в {ru_number(compression_times, 1)} раза.
+
+Таким образом, при отсутствии помех РЛС обеспечивает значительную дальность обнаружения, однако при воздействии активной помехи в наиболее неблагоприятном направлении зона действия может существенно сокращаться."""
+
+
+# -----------------------------
 # Графики
 # -----------------------------
 
@@ -552,6 +652,9 @@ def create_report(
 
     input_rows = build_input_data_rows(variant_number, data)
     replace_marker_with_table(document, "{{INPUT_DATA_TABLE}}", input_rows)
+
+    results_rows = build_results_table_rows(results)
+    replace_marker_with_table(document, "{{RESULTS_TABLE}}", results_rows)
 
     calculation_texts = build_calculation_texts(data, results)
 
