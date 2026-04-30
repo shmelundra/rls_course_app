@@ -1,7 +1,7 @@
 # app.py
 # Сайт-приложение Streamlit:
 # выбор варианта или ручной ввод → расчёты → графики на сайте → Word-отчёт.
-# Шаг 12 доработки: добавлено подробное пояснение к диаграмме дальностей.
+# Шаг 8 доработки: улучшена вкладка «О проекте».
 
 from pathlib import Path
 from datetime import datetime
@@ -11,7 +11,7 @@ import streamlit as st
 
 from variants import VARIANTS, AMPLITUDE_DISTRIBUTION_NAMES
 from calculations import calculate_all
-from plots import create_all_plots, plot_range_diagram
+from plots import create_all_plots
 from report import create_report
 
 
@@ -222,7 +222,6 @@ def show_graphs(graph_paths: dict):
         "GRAPH_SELF_EPSILON": "6. Самоприкрытие: дальность от угла места",
         "GRAPH_EXTERNAL_ALPHA": "7. Внешнее прикрытие: дальность от азимута",
         "GRAPH_EXTERNAL_EPSILON": "8. Внешнее прикрытие: дальность от угла места",
-        "GRAPH_RMAX_HEATMAP": "9. Дополнительная визуализация: тепловая карта зоны действия РЛС",
     }
 
     items = list(graph_paths.items())
@@ -490,9 +489,6 @@ def generate_report_and_graphs(variant_number, student_name, group_name, data):
     graph_dir = Path("graphs") / f"{student_safe}_variant_{variant_number}_{timestamp}"
     graph_paths = create_all_plots(data, results, output_dir=graph_dir)
 
-    # Дополнительная диаграмма дальностей нужна только для сайта
-    extra_graph_path = plot_range_diagram(data, results, output_dir=graph_dir)
-
     template_path = Path("template.docx")
     if not template_path.exists():
         st.error("Файл template.docx не найден. Он должен лежать в папке проекта рядом с app.py.")
@@ -514,7 +510,7 @@ def generate_report_and_graphs(variant_number, student_name, group_name, data):
         graph_paths=graph_paths,
     )
 
-    return results, graph_paths, extra_graph_path, report_path
+    return results, graph_paths, report_path
 
 
 # -----------------------------
@@ -543,9 +539,6 @@ if "graph_paths" not in st.session_state:
 
 if "report_path" not in st.session_state:
     st.session_state.report_path = None
-
-if "extra_graph_path" not in st.session_state:
-    st.session_state.extra_graph_path = None
 
 if "student_name" not in st.session_state:
     st.session_state.student_name = ""
@@ -686,7 +679,7 @@ with tab_input:
             st.stop()
 
         with st.spinner("Выполняю расчёты, строю графики и формирую Word-отчёт..."):
-            results, graph_paths, extra_graph_path, report_path = generate_report_and_graphs(
+            results, graph_paths, report_path = generate_report_and_graphs(
                 variant_number=variant_number,
                 student_name=student_name,
                 group_name=group_name,
@@ -695,7 +688,6 @@ with tab_input:
 
         st.session_state.results = results
         st.session_state.graph_paths = graph_paths
-        st.session_state.extra_graph_path = extra_graph_path
         st.session_state.report_path = report_path
         st.session_state.student_name = student_name
         st.session_state.group_name = group_name
@@ -724,60 +716,7 @@ with tab_graphs:
     if st.session_state.graph_paths is None:
         st.warning("Сначала выполните расчёт во вкладке «Ввод данных».")
     else:
-        st.info(
-            "Ниже представлены основные графики расчёта, тепловая карта зоны действия РЛС и дополнительная диаграмма дальностей."
-        )
-
-        with st.expander("ℹ️ Что показывает тепловая карта зоны действия РЛС", expanded=True):
-            st.markdown("""
-            **Тепловая карта** показывает изменение максимальной дальности обнаружения цели
-            в зависимости от направления сканирования луча.
-
-            - по оси **X** отложен азимут `α`, градусы;
-            - по оси **Y** отложен угол места `ε`, градусы;
-            - цветом показано значение максимальной дальности `Rmax`, км;
-            - светлая область соответствует большей дальности обнаружения;
-            - тёмная область соответствует меньшей дальности обнаружения;
-            - точка на карте показывает направление нормали к полотну АФАР.
-
-            При отклонении луча от нормали к АФАР максимальная дальность уменьшается.
-            Поэтому тепловая карта позволяет наглядно оценить не одну отдельную зависимость,
-            а всю двумерную зону действия РЛС в секторе обзора.
-            """)
-
-        with st.expander("ℹ️ Что показывает диаграмма дальностей", expanded=False):
-            st.markdown("""
-            **Диаграмма дальностей** показывает зону действия РЛС в азимутальной плоскости.
-
-            - центр диаграммы — положение РЛС;
-            - закрашенная область показывает зону обнаружения без помех;
-            - внешняя граница соответствует максимальной дальности `Rmax(α)`;
-            - пунктирные дуги показывают уровни дальности при действии активных помех:
-              самоприкрытие и внешнее прикрытие.
-
-            Такая диаграмма удобна тем, что позволяет увидеть зону действия не как отдельный график,
-            а как наглядный сектор обзора РЛС.
-            """)
-
         show_graphs(st.session_state.graph_paths)
-
-        if st.session_state.extra_graph_path is not None:
-            st.markdown("""
-            ### 10. Дополнительная визуализация: диаграмма дальностей РЛС
-
-            Эта диаграмма показывает **зону действия РЛС в азимутальной плоскости**.
-
-            - центр диаграммы соответствует положению РЛС;
-            - закрашенная область показывает зону обнаружения цели без помех;
-            - внешняя граница показывает изменение максимальной дальности `Rmax(α)` при отклонении луча по азимуту;
-            - пунктирные дуги показывают уровни максимальной дальности при воздействии активных помех;
-            - чем больше сектор и дальше его граница от центра, тем больше зона действия РЛС.
-
-            Диаграмма позволяет наглядно сравнить нормальную зону обнаружения с дальностями,
-            которые получаются при действии активных помех.
-            """)
-
-            st.image(str(st.session_state.extra_graph_path), use_container_width=True)
 
 
 with tab_report:
