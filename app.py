@@ -1,6 +1,7 @@
 # app.py
 # Сайт-приложение Streamlit:
 # выбор варианта или ручной ввод → расчёты → графики на сайте → Word-отчёт.
+# Шаг 1 доработки: добавлены вкладки сайта.
 
 from pathlib import Path
 from datetime import datetime
@@ -14,10 +15,6 @@ from plots import create_all_plots
 from report import create_report
 
 
-# -----------------------------
-# Настройки страницы
-# -----------------------------
-
 st.set_page_config(
     page_title="Генератор курсовой РЛС",
     page_icon="📡",
@@ -25,14 +22,10 @@ st.set_page_config(
 )
 
 
-# -----------------------------
-# Вспомогательные функции
-# -----------------------------
-
 def safe_filename(text: str) -> str:
     """Делает безопасное имя файла."""
     text = text.strip()
-    text = re.sub(r"[^a-zA-Zа-яА-Я0-9_\-]+", "_", text)
+    text = re.sub(r"[^a-zA-Zа-яА-Я0-9_\\-]+", "_", text)
     return text.strip("_") or "student"
 
 
@@ -174,7 +167,7 @@ def generate_report_and_graphs(variant_number, student_name, group_name, data):
         st.stop()
 
     report_dir = Path("reports")
-    report_dir.mkdir(exist_ok=True)
+    report_dir.mkdir(parents=True, exist_ok=True)
 
     report_path = report_dir / f"report_{student_safe}_variant_{variant_number}_{timestamp}.docx"
 
@@ -203,81 +196,194 @@ st.markdown("""
 
 **Тема:** Оценка информационных возможностей секторной импульсной РЛС с плоской прямоугольной АФАР  
 
-**Разработано Иришкой Шмелевой 🐝**
-
-Приложение выполняет расчёты по пунктам курсовой работы, строит графики диаграмм направленности и зон действия РЛС, а также формирует готовый Word-отчёт.
+**Разработано Иришкой 🐝**
 """)
 
-with st.sidebar:
-    st.header("Данные студента")
+tab_home, tab_input, tab_results, tab_graphs, tab_report, tab_about = st.tabs(
+    ["🏠 Главная", "📝 Ввод данных", "📊 Результаты", "📈 Графики", "📄 Word-отчёт", "ℹ️ О проекте"]
+)
 
-    variant_number_input = st.number_input(
-        "Номер варианта",
-        min_value=1,
-        max_value=20,
-        value=4,
-        step=1,
-    )
+if "results" not in st.session_state:
+    st.session_state.results = None
 
-    student_name = st.text_input("ФИО студента", value="Иванов Иван Иванович")
-    group_name = st.text_input("Группа", value="К-33Х")
+if "graph_paths" not in st.session_state:
+    st.session_state.graph_paths = None
 
-    st.header("Способ ввода")
-    input_mode = st.radio(
-        "Выберите режим",
-        ["Выбрать вариант из списка", "Ввести значения вручную"],
-    )
+if "report_path" not in st.session_state:
+    st.session_state.report_path = None
 
+if "student_name" not in st.session_state:
+    st.session_state.student_name = ""
 
-variant_number = int(variant_number_input)
+if "group_name" not in st.session_state:
+    st.session_state.group_name = ""
 
-st.subheader("Исходные данные")
-
-if input_mode == "Выбрать вариант из списка":
-    data = VARIANTS[variant_number]
-    st.success(f"Выбран вариант {variant_number}. Данные загружены из таблицы вариантов.")
-
-    st.json(data, expanded=False)
-
-else:
-    st.info("Ручной ввод. По умолчанию поля заполнены значениями выбранного варианта.")
-    default_data = VARIANTS[variant_number]
-    data = build_manual_data(default_data)
+if "variant_number" not in st.session_state:
+    st.session_state.variant_number = 4
 
 
-st.divider()
+with tab_home:
+    st.header("Добро пожаловать 👋")
 
-if st.button("🚀 Рассчитать и сформировать Word-отчёт", type="primary"):
-    if not student_name.strip():
-        st.error("Введите ФИО студента.")
-        st.stop()
+    st.markdown("""
+    Это приложение автоматизирует выполнение расчётной части курсовой работы по РЛС.
 
-    if not group_name.strip():
-        st.error("Введите группу.")
-        st.stop()
+    **Что умеет приложение:**
 
-    with st.spinner("Выполняю расчёты, строю графики и формирую Word-отчёт..."):
-        results, graph_paths, report_path = generate_report_and_graphs(
-            variant_number=variant_number,
-            student_name=student_name,
-            group_name=group_name,
-            data=data,
+    - выбирать исходные данные по номеру варианта;
+    - принимать ручной ввод параметров;
+    - рассчитывать основные характеристики РЛС и АФАР;
+    - строить 8 графиков;
+    - показывать основные результаты на сайте;
+    - формировать готовый Word-отчёт по шаблону.
+    """)
+
+    st.success("Краткая инструкция: откройте вкладку «Ввод данных», заполните ФИО и группу, выберите вариант или ручной ввод, затем нажмите кнопку расчёта.")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.info("1. Введите данные студента")
+
+    with col2:
+        st.info("2. Выберите вариант или ручной ввод")
+
+    with col3:
+        st.info("3. Скачайте готовый Word-отчёт")
+
+
+with tab_input:
+    st.header("Ввод исходных данных")
+
+    with st.sidebar:
+        st.header("Данные студента")
+
+        variant_number_input = st.number_input(
+            "Номер варианта",
+            min_value=1,
+            max_value=20,
+            value=int(st.session_state.variant_number),
+            step=1,
         )
 
-    st.success("Готово! Расчёты выполнены, графики построены, Word-отчёт создан.")
+        student_name = st.text_input("ФИО студента", value=st.session_state.student_name)
+        group_name = st.text_input("Группа", value=st.session_state.group_name)
 
-    show_main_results(results)
-    show_graphs(graph_paths)
-
-    with open(report_path, "rb") as file:
-        st.download_button(
-            label="📄 Скачать готовый Word-отчёт",
-            data=file,
-            file_name=report_path.name,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        st.header("Способ ввода")
+        input_mode = st.radio(
+            "Выберите режим",
+            ["Выбрать вариант из списка", "Ввести значения вручную"],
         )
 
-    st.caption(f"Файл отчёта сохранён локально: {report_path}")
+    variant_number = int(variant_number_input)
 
-else:
-    st.info("Заполните данные слева и нажмите кнопку расчёта.")
+    st.subheader("Исходные данные")
+
+    if input_mode == "Выбрать вариант из списка":
+        data = VARIANTS[variant_number]
+        st.success(f"Выбран вариант {variant_number}. Данные загружены из таблицы вариантов.")
+
+        with st.expander("Показать исходные данные варианта"):
+            st.json(data, expanded=True)
+
+    else:
+        st.info("Ручной ввод. По умолчанию поля заполнены значениями выбранного варианта.")
+        default_data = VARIANTS[variant_number]
+        data = build_manual_data(default_data)
+
+    st.divider()
+
+    if st.button("🚀 Рассчитать и сформировать Word-отчёт", type="primary"):
+        if not student_name.strip():
+            st.error("Введите ФИО студента.")
+            st.stop()
+
+        if not group_name.strip():
+            st.error("Введите группу.")
+            st.stop()
+
+        with st.spinner("Выполняю расчёты, строю графики и формирую Word-отчёт..."):
+            results, graph_paths, report_path = generate_report_and_graphs(
+                variant_number=variant_number,
+                student_name=student_name,
+                group_name=group_name,
+                data=data,
+            )
+
+        st.session_state.results = results
+        st.session_state.graph_paths = graph_paths
+        st.session_state.report_path = report_path
+        st.session_state.student_name = student_name
+        st.session_state.group_name = group_name
+        st.session_state.variant_number = variant_number
+
+        st.success("Готово! Расчёты выполнены, графики построены, Word-отчёт создан.")
+        st.info("Теперь откройте вкладки «Результаты», «Графики» и «Word-отчёт».")
+
+
+with tab_results:
+    st.header("Результаты расчёта")
+
+    if st.session_state.results is None:
+        st.warning("Сначала выполните расчёт во вкладке «Ввод данных».")
+    else:
+        show_main_results(st.session_state.results)
+
+
+with tab_graphs:
+    st.header("Графики")
+
+    if st.session_state.graph_paths is None:
+        st.warning("Сначала выполните расчёт во вкладке «Ввод данных».")
+    else:
+        show_graphs(st.session_state.graph_paths)
+
+
+with tab_report:
+    st.header("Word-отчёт")
+
+    if st.session_state.report_path is None:
+        st.warning("Сначала выполните расчёт во вкладке «Ввод данных».")
+    else:
+        report_path = Path(st.session_state.report_path)
+
+        st.success("Word-отчёт готов.")
+
+        with open(report_path, "rb") as file:
+            st.download_button(
+                label="📄 Скачать готовый Word-отчёт",
+                data=file,
+                file_name=report_path.name,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+
+        st.caption(f"Файл отчёта сохранён локально: {report_path}")
+
+
+with tab_about:
+    st.header("О проекте")
+
+    st.markdown("""
+    **Цель проекта:** автоматизировать расчёты курсовой работы, построение графиков и формирование отчёта.
+
+    **Структура программы:**
+
+    - `variants.py` — таблица исходных данных вариантов;
+    - `calculations.py` — расчётное ядро;
+    - `plots.py` — построение графиков;
+    - `report.py` — генерация Word-отчёта;
+    - `app.py` — сайт-интерфейс;
+    - `template.docx` — шаблон отчёта с теорией и метками.
+
+    **Использованные технологии:**
+
+    - Python;
+    - Streamlit;
+    - NumPy;
+    - Matplotlib;
+    - python-docx;
+    - GitHub;
+    - Streamlit Cloud.
+    """)
+
+    st.info("Следующие доработки: расширенная проверка введённых данных, улучшенная таблица результатов, автоматическое пояснение результатов и улучшение Word-отчёта.")
