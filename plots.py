@@ -1,6 +1,6 @@
 # plots.py
 # Построение графиков для курсовой работы по РЛС.
-# Версия 2: графики 5–8 оформлены как уровни помеховых дальностей.
+# Версия 3: добавлена дополнительная диаграмма дальностей для отображения зоны действия РЛС на сайте.
 
 from pathlib import Path
 
@@ -446,9 +446,129 @@ def plot_external_epsilon(data, results, output_dir, show=False):
     return path
 
 
+def plot_rmax_heatmap(data, results, output_dir, show=False):
+    """
+    Дополнительная визуализация:
+    тепловая карта зоны действия РЛС.
+
+    По оси X — азимут alpha, градусы.
+    По оси Y — угол места epsilon, градусы.
+    Цвет — максимальная дальность Rmax(alpha, epsilon), км.
+    """
+    alpha = np.linspace(-60, 60, 241)
+    epsilon = np.linspace(5, 70, 181)
+
+    alpha_grid, epsilon_grid = np.meshgrid(alpha, epsilon)
+
+    rmax_map = rmax_no_jam_array(results, alpha_grid, epsilon_grid)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    heatmap = ax.contourf(
+        alpha_grid,
+        epsilon_grid,
+        rmax_map,
+        levels=30,
+    )
+
+    contour_lines = ax.contour(
+        alpha_grid,
+        epsilon_grid,
+        rmax_map,
+        levels=10,
+        linewidths=0.7,
+    )
+    ax.clabel(contour_lines, inline=True, fontsize=8, fmt="%.0f")
+
+    colorbar = fig.colorbar(heatmap, ax=ax)
+    colorbar.set_label(r"Максимальная дальность $R_{max}$, км")
+
+    gamma_norm = results["gamma_epsilon_norm"]
+    ax.scatter(0, gamma_norm, marker="o", s=60, label="Направление нормали к АФАР")
+    ax.annotate(
+        rf"$\alpha=0^\circ,\ \varepsilon={gamma_norm:.1f}^\circ$",
+        xy=(0, gamma_norm),
+        xytext=(8, gamma_norm + 4),
+        arrowprops=dict(arrowstyle="->"),
+    )
+
+    ax.set_title("Тепловая карта зоны действия РЛС")
+    ax.set_xlabel(r"Азимут $\alpha$, градусы")
+    ax.set_ylabel(r"Угол места $\varepsilon$, градусы")
+    ax.set_xlim(-60, 60)
+    ax.set_ylim(5, 70)
+    ax.grid(True)
+    ax.legend(loc="upper right")
+
+    path = output_dir / "rmax_heatmap.png"
+    save_figure(fig, path, show)
+
+    return path
+
+
+def plot_range_diagram(data, results, output_dir, show=False):
+    """
+    Дополнительная визуализация:
+    диаграмма дальностей РЛС в азимутальной плоскости.
+
+    Показывает зону обнаружения в виде сектора обзора.
+    """
+    alpha_deg = np.linspace(-60, 60, 721)
+    alpha_rad = np.deg2rad(alpha_deg)
+    gamma_norm = results["gamma_epsilon_norm"]
+
+    r_no = rmax_no_jam_array(results, alpha_deg, gamma_norm)
+    r_sp = np.full_like(alpha_deg, results["R_max_p_sp_km"])
+    r_vp = np.full_like(alpha_deg, results["R_max_p_vp_km"])
+
+    def polar_to_cart(r_values):
+        x = r_values * np.sin(alpha_rad)
+        y = r_values * np.cos(alpha_rad)
+        return x, y
+
+    x_no, y_no = polar_to_cart(r_no)
+    x_sp, y_sp = polar_to_cart(r_sp)
+    x_vp, y_vp = polar_to_cart(r_vp)
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    ax.fill(
+        np.concatenate(([0], x_no, [0])),
+        np.concatenate(([0], y_no, [0])),
+        alpha=0.20,
+        label="Зона действия без помех",
+    )
+    ax.plot(x_no, y_no, linewidth=2, label=r"$R_{max}(\alpha)$")
+    ax.plot(x_sp, y_sp, linestyle="--", linewidth=2, label=rf"$R_{{max\,п\,сп}}={results['R_max_p_sp_km']:.2f}$ км")
+    ax.plot(x_vp, y_vp, linestyle="--", linewidth=2, label=rf"$R_{{max\,п\,вп}}={results['R_max_p_vp_km']:.2f}$ км")
+
+    ax.scatter(0, 0, s=45)
+    ax.annotate("РЛС", xy=(0, 0), xytext=(8, -12), textcoords="offset points")
+
+    ax.plot([0, 0], [0, results["R_max_km"]], linestyle=":")
+    ax.annotate(
+        rf"$R_{{max}}={results['R_max_km']:.2f}$ км",
+        xy=(0, results["R_max_km"]),
+        xytext=(8, -10),
+        textcoords="offset points",
+    )
+
+    ax.set_title("Диаграмма дальностей РЛС в азимутальной плоскости")
+    ax.set_xlabel("Поперечная координата, км")
+    ax.set_ylabel("Дальность, км")
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(True)
+    ax.legend(loc="upper right")
+
+    path = output_dir / "range_diagram.png"
+    save_figure(fig, path, show)
+
+    return path
+
+
 def create_all_plots(data, results, output_dir="graphs", show=False):
     """
-    Построение всех 8 графиков.
+    Построение всех основных графиков и дополнительной тепловой карты.
 
     Возвращает словарь:
     имя графика -> путь к файлу.
@@ -465,6 +585,7 @@ def create_all_plots(data, results, output_dir="graphs", show=False):
         "GRAPH_SELF_EPSILON": plot_self_epsilon(data, results, output_dir, show),
         "GRAPH_EXTERNAL_ALPHA": plot_external_alpha(data, results, output_dir, show),
         "GRAPH_EXTERNAL_EPSILON": plot_external_epsilon(data, results, output_dir, show),
+        "GRAPH_RMAX_HEATMAP": plot_rmax_heatmap(data, results, output_dir, show),
     }
 
     return graph_paths
