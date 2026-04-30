@@ -1,5 +1,6 @@
 # plots.py
 # Построение графиков для курсовой работы по РЛС.
+# Версия 2: графики 5–8 оформлены как уровни помеховых дальностей.
 
 from pathlib import Path
 
@@ -25,11 +26,6 @@ def safe_fourth_root_array(value):
 def amplitude_weights(coords, aperture_size, distribution, delta_p=None):
     """
     Амплитудное распределение по раскрыву АФАР.
-
-    coords — координаты излучателей;
-    aperture_size — размер раскрыва;
-    distribution — тип АР;
-    delta_p — пьедестал, если есть.
     """
     if delta_p is None:
         delta_p = 0.0
@@ -59,8 +55,6 @@ def amplitude_weights(coords, aperture_size, distribution, delta_p=None):
 def calculate_array_factor(theta_deg, coords, weights, wavelength):
     """
     Расчёт нормированной диаграммы направленности линейной решётки.
-
-    Возвращает FN в линейном виде и FN в дБ.
     """
     theta_rad = np.deg2rad(theta_deg)
     k = 2 * np.pi / wavelength
@@ -87,10 +81,20 @@ def save_figure(fig, path, show=False):
         plt.close(fig)
 
 
+def add_level_label(ax, x_value, y_value, text, y_offset=1.0):
+    """Добавляет подпись горизонтального уровня на график."""
+    ax.text(
+        x_value,
+        y_value + y_offset,
+        text,
+        fontsize=9,
+        verticalalignment="bottom",
+    )
+
+
 def plot_dn_azimuth(data, results, output_dir, show=False):
     """
-    График 1:
-    Нормированная ДН АФАР в азимутальной плоскости FN(theta, 0).
+    График 1: нормированная ДН АФАР в азимутальной плоскости FN(theta, 0).
     """
     wavelength = data["lambda_v"]
     Lax = data["Lax"]
@@ -151,8 +155,7 @@ def plot_dn_azimuth(data, results, output_dir, show=False):
 
 def plot_dn_elevation(data, results, output_dir, show=False):
     """
-    График 2:
-    Нормированная ДН АФАР в угломестной плоскости FN(theta, 90).
+    График 2: нормированная ДН АФАР в угломестной плоскости FN(theta, 90).
     """
     wavelength = data["lambda_v"]
     Lay = data["Lay"]
@@ -213,8 +216,7 @@ def plot_dn_elevation(data, results, output_dir, show=False):
 
 def plot_rmax_alpha(data, results, output_dir, show=False):
     """
-    График 3:
-    Зависимость Rmax(alpha, gamma_epsilon_norm).
+    График 3: зависимость Rmax(alpha, gamma_epsilon_norm).
     """
     rmax_km = results["R_max_km"]
 
@@ -251,8 +253,7 @@ def plot_rmax_alpha(data, results, output_dir, show=False):
 
 def plot_rmax_epsilon(data, results, output_dir, show=False):
     """
-    График 4:
-    Зависимость Rmax(0, epsilon).
+    График 4: зависимость Rmax(0, epsilon).
     """
     rmax_km = results["R_max_km"]
     gamma_norm = results["gamma_epsilon_norm"]
@@ -297,115 +298,29 @@ def rmax_no_jam_array(results, alpha_deg, eps_deg):
     return rmax_km * safe_sqrt_array(projection)
 
 
-def rmax_self_array(data, results, alpha_deg, eps_deg, sidelobe=False):
-    """
-    Максимальная дальность при самоприкрытии.
-    """
-    wavelength = data["lambda_v"]
-    sigma_c = data["sigma_c"]
-    P_p = data["P_p"]
-    k_pol = data["k_pol"]
-
-    delta_f_p = results["delta_f_p"]
-    G_ap = results["G_ap"]
-    S_a = results["S_a"]
-    eta_bl = results["eta_bl"]
-    gamma_norm = results["gamma_epsilon_norm"]
-
-    P_i = results["P_i"]
-    G_a = results["G_a"]
-    q2 = results["q2"]
-    delta_F_pr = results["delta_F_pr"]
-    k_loss = results["k_loss"]
-    N0 = results["N0"]
-
-    projection = cosd(alpha_deg) * cosd(eps_deg - gamma_norm)
-    projection_sq = np.maximum(projection, 0.0) ** 2
-
-    A = (
-        P_i * (G_a ** 2) * (wavelength ** 2) * sigma_c * projection_sq
-    ) / (((4 * np.pi) ** 3) * q2 * delta_F_pr * k_loss)
-
-    K = (
-        P_p * G_ap * S_a * k_pol * projection_sq
-    ) / (4 * np.pi * delta_f_p)
-
-    if sidelobe:
-        K = K * eta_bl
-
-    discriminant = (K ** 2) + 4 * N0 * A
-    x = (-K + safe_sqrt_array(discriminant)) / (2 * N0)
-
-    return safe_sqrt_array(x) / 1000
-
-
-def rmax_external_array(data, results, alpha_deg, eps_deg, sidelobe=False):
-    """
-    Максимальная дальность при внешнем прикрытии.
-    """
-    P_p = data["P_p"]
-    k_pol = data["k_pol"]
-    alpha_p = data["alpha_p"]
-    epsilon_p = data["epsilon_p"]
-
-    delta_f_p = results["delta_f_p"]
-    r_p = results["r_p"]
-    G_ap = results["G_ap"]
-    S_a = results["S_a"]
-    eta_bl = results["eta_bl"]
-    gamma_norm = results["gamma_epsilon_norm"]
-
-    P_i = results["P_i"]
-    G_a = results["G_a"]
-    wavelength = data["lambda_v"]
-    sigma_c = data["sigma_c"]
-    q2 = results["q2"]
-    delta_F_pr = results["delta_F_pr"]
-    k_loss = results["k_loss"]
-    N0 = results["N0"]
-
-    projection = cosd(alpha_deg) * cosd(eps_deg - gamma_norm)
-    projection_sq = np.maximum(projection, 0.0) ** 2
-
-    A = (
-        P_i * (G_a ** 2) * (wavelength ** 2) * sigma_c * projection_sq
-    ) / (((4 * np.pi) ** 3) * q2 * delta_F_pr * k_loss)
-
-    N_p = (
-        P_p
-        * G_ap
-        * S_a
-        * k_pol
-        * cosd(alpha_p - alpha_deg)
-        * cosd(epsilon_p - eps_deg - gamma_norm)
-    ) / (4 * np.pi * (r_p ** 2) * delta_f_p)
-
-    N_p = np.maximum(N_p, 0.0)
-
-    if sidelobe:
-        N_p = N_p * eta_bl
-
-    return safe_fourth_root_array(A / (N0 + N_p)) / 1000
-
-
 def plot_self_alpha(data, results, output_dir, show=False):
     """
-    График 5:
-    Самоприкрытие — зависимость дальности от азимута.
+    График 5: самоприкрытие — зависимость дальности от азимута.
+    Помеховые дальности показаны горизонтальными пунктирными уровнями.
     """
     gamma_norm = results["gamma_epsilon_norm"]
 
     alpha = np.linspace(-60, 60, 1000)
-
     r_no = rmax_no_jam_array(results, alpha, gamma_norm)
-    r_sp = rmax_self_array(data, results, alpha, gamma_norm, sidelobe=False)
-    r_sp_bl = rmax_self_array(data, results, alpha, gamma_norm, sidelobe=True)
+
+    r_sp = results["R_max_p_sp_km"]
+    r_sp_bl = results["R_max_p_bl_sp_km"]
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    ax.plot(alpha, r_no, label=r"$R_{max}$")
-    ax.plot(alpha, r_sp, label=r"$R_{max\,п\,сп}$")
-    ax.plot(alpha, r_sp_bl, label=r"$R_{max\,п\,бл\,сп}$")
+    ax.plot(alpha, r_no, label=r"$R_{max}$", linewidth=2)
+    ax.hlines(y=r_sp, xmin=alpha.min(), xmax=alpha.max(), linestyles="--",
+              label=rf"$R_{{max\,п\,сп}}={r_sp:.2f}$ км")
+    ax.hlines(y=r_sp_bl, xmin=alpha.min(), xmax=alpha.max(), linestyles="--",
+              label=rf"$R_{{max\,п\,бл\,сп}}={r_sp_bl:.2f}$ км")
+
+    add_level_label(ax, alpha.min() + 3, r_sp, f"{r_sp:.2f} км")
+    add_level_label(ax, alpha.min() + 3, r_sp_bl, f"{r_sp_bl:.2f} км")
 
     ax.set_title("Самоприкрытие: зависимость максимальной дальности от азимута")
     ax.set_xlabel(r"Азимут $\alpha$, градусы")
@@ -422,21 +337,27 @@ def plot_self_alpha(data, results, output_dir, show=False):
 
 def plot_self_epsilon(data, results, output_dir, show=False):
     """
-    График 6:
-    Самоприкрытие — зависимость дальности от угла места.
+    График 6: самоприкрытие — зависимость дальности от угла места.
+    Помеховые дальности показаны горизонтальными пунктирными уровнями.
     """
     eps = np.linspace(5, 70, 1000)
     alpha0 = 0
 
     r_no = rmax_no_jam_array(results, alpha0, eps)
-    r_sp = rmax_self_array(data, results, alpha0, eps, sidelobe=False)
-    r_sp_bl = rmax_self_array(data, results, alpha0, eps, sidelobe=True)
+
+    r_sp = results["R_max_p_sp_km"]
+    r_sp_bl = results["R_max_p_bl_sp_km"]
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    ax.plot(eps, r_no, label=r"$R_{max}$")
-    ax.plot(eps, r_sp, label=r"$R_{max\,п\,сп}$")
-    ax.plot(eps, r_sp_bl, label=r"$R_{max\,п\,бл\,сп}$")
+    ax.plot(eps, r_no, label=r"$R_{max}$", linewidth=2)
+    ax.hlines(y=r_sp, xmin=eps.min(), xmax=eps.max(), linestyles="--",
+              label=rf"$R_{{max\,п\,сп}}={r_sp:.2f}$ км")
+    ax.hlines(y=r_sp_bl, xmin=eps.min(), xmax=eps.max(), linestyles="--",
+              label=rf"$R_{{max\,п\,бл\,сп}}={r_sp_bl:.2f}$ км")
+
+    add_level_label(ax, eps.min() + 2, r_sp, f"{r_sp:.2f} км")
+    add_level_label(ax, eps.min() + 2, r_sp_bl, f"{r_sp_bl:.2f} км")
 
     ax.set_title("Самоприкрытие: зависимость максимальной дальности от угла места")
     ax.set_xlabel(r"Угол места $\varepsilon$, градусы")
@@ -453,22 +374,27 @@ def plot_self_epsilon(data, results, output_dir, show=False):
 
 def plot_external_alpha(data, results, output_dir, show=False):
     """
-    График 7:
-    Внешнее прикрытие — зависимость дальности от азимута.
+    График 7: внешнее прикрытие — зависимость дальности от азимута.
+    Помеховые дальности показаны горизонтальными пунктирными уровнями.
     """
     gamma_norm = results["gamma_epsilon_norm"]
 
     alpha = np.linspace(-60, 60, 1000)
-
     r_no = rmax_no_jam_array(results, alpha, gamma_norm)
-    r_vp = rmax_external_array(data, results, alpha, gamma_norm, sidelobe=False)
-    r_vp_bl = rmax_external_array(data, results, alpha, gamma_norm, sidelobe=True)
+
+    r_vp = results["R_max_p_vp_km"]
+    r_vp_bl = results["R_max_p_bl_vp_km"]
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    ax.plot(alpha, r_no, label=r"$R_{max}$")
-    ax.plot(alpha, r_vp, label=r"$R_{max\,п\,вп}$")
-    ax.plot(alpha, r_vp_bl, label=r"$R_{max\,п\,бл\,вп}$")
+    ax.plot(alpha, r_no, label=r"$R_{max}$", linewidth=2)
+    ax.hlines(y=r_vp, xmin=alpha.min(), xmax=alpha.max(), linestyles="--",
+              label=rf"$R_{{max\,п\,вп}}={r_vp:.2f}$ км")
+    ax.hlines(y=r_vp_bl, xmin=alpha.min(), xmax=alpha.max(), linestyles="--",
+              label=rf"$R_{{max\,п\,бл\,вп}}={r_vp_bl:.2f}$ км")
+
+    add_level_label(ax, alpha.min() + 3, r_vp, f"{r_vp:.2f} км")
+    add_level_label(ax, alpha.min() + 3, r_vp_bl, f"{r_vp_bl:.2f} км")
 
     ax.set_title("Внешнее прикрытие: зависимость максимальной дальности от азимута")
     ax.set_xlabel(r"Азимут $\alpha$, градусы")
@@ -485,21 +411,27 @@ def plot_external_alpha(data, results, output_dir, show=False):
 
 def plot_external_epsilon(data, results, output_dir, show=False):
     """
-    График 8:
-    Внешнее прикрытие — зависимость дальности от угла места.
+    График 8: внешнее прикрытие — зависимость дальности от угла места.
+    Помеховые дальности показаны горизонтальными пунктирными уровнями.
     """
     eps = np.linspace(5, 70, 1000)
     alpha0 = 0
 
     r_no = rmax_no_jam_array(results, alpha0, eps)
-    r_vp = rmax_external_array(data, results, alpha0, eps, sidelobe=False)
-    r_vp_bl = rmax_external_array(data, results, alpha0, eps, sidelobe=True)
+
+    r_vp = results["R_max_p_vp_km"]
+    r_vp_bl = results["R_max_p_bl_vp_km"]
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    ax.plot(eps, r_no, label=r"$R_{max}$")
-    ax.plot(eps, r_vp, label=r"$R_{max\,п\,вп}$")
-    ax.plot(eps, r_vp_bl, label=r"$R_{max\,п\,бл\,вп}$")
+    ax.plot(eps, r_no, label=r"$R_{max}$", linewidth=2)
+    ax.hlines(y=r_vp, xmin=eps.min(), xmax=eps.max(), linestyles="--",
+              label=rf"$R_{{max\,п\,вп}}={r_vp:.2f}$ км")
+    ax.hlines(y=r_vp_bl, xmin=eps.min(), xmax=eps.max(), linestyles="--",
+              label=rf"$R_{{max\,п\,бл\,вп}}={r_vp_bl:.2f}$ км")
+
+    add_level_label(ax, eps.min() + 2, r_vp, f"{r_vp:.2f} км")
+    add_level_label(ax, eps.min() + 2, r_vp_bl, f"{r_vp_bl:.2f} км")
 
     ax.set_title("Внешнее прикрытие: зависимость максимальной дальности от угла места")
     ax.set_xlabel(r"Угол места $\varepsilon$, градусы")
