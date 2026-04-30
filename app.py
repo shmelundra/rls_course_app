@@ -219,8 +219,8 @@ with st.sidebar:
         step=1,
     )
 
-    student_name = st.text_input("ФИО студента", value="Иванова Анна Сергеевна")
-    group_name = st.text_input("Группа", value="ИУ7-XXБ")
+    student_name = st.text_input("ФИО студента", value="Иванов Иван Иванович")
+    group_name = st.text_input("Группа", value="К-33Х")
 
     st.header("Способ ввода")
     input_mode = st.radio(
